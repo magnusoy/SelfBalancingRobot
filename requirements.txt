@@ -1,0 +1,5 @@
+pyserial==3.4
+pygame==1.9.4
+numpy==1.16.0
+opencv-python==
+adafruit-circuitpython-motorkit==
