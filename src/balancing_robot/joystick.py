@@ -36,6 +36,7 @@ class Joystick(object):
 
     pygame.init()
     pygame.joystick.init()
+    pygame.display.set_mode([5, 7])
 
     def __init__(self):
         """
@@ -43,11 +44,13 @@ class Joystick(object):
         Require a controller to be connected through Serial or Bluetooth.
         """
 
+        self.clock = pygame.time.Clock()
+
         try:
             self.joystick = pygame.joystick.Joystick(0)
             self.joystick.init()
             self.numOfBtns = self.joystick.get_numbuttons()
-            self.numOfAxis = self.joystick.get_numaxes()
+            self.numOfAxes = self.joystick.get_numaxes()
         except pygame.error:
             self.joystick = None
             print("Could not connect to joystick")
@@ -78,11 +81,11 @@ class Joystick(object):
         @return an array of read float values
         """
 
-        axis = np.zeros(self.numOfAxis)
+        axes = np.zeros(self.numOfAxes)
         for event in pygame.event.get():
             for index in range(self.numOfAxes):
-                axis[index] = self.joystick.get_axis(index)
-        return axis
+                axes[index] = self.joystick.get_axis(index)
+        return axes
 
     def readButtons(self):
         """
@@ -90,11 +93,18 @@ class Joystick(object):
         @return an array storing the states of the buttons
         """
 
-        buttons = np.zeros(self.numOfBtns)
+        buttons = np.zeros(self.numOfBtns)	
         for event in pygame.event.get():
             for index in range(self.numOfBtns):
                 buttons[index] = self.joystick.get_button(index)
         return buttons
+    
+    def frameRate(self, rate):
+        """
+        docstring
+        """
+
+        self.clock.tick(rate)
 
     def disconnect(self):
         """
