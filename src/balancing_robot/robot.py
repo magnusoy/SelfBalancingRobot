@@ -38,7 +38,6 @@ class SelfBalancingRobot(object):
 
         # Start with a default state.
         self.state = InitState()
-        self.action = self.state.onAction()
 
     def onEvent(self, event):
         """

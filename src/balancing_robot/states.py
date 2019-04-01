@@ -33,7 +33,8 @@ class InitState(State):
     """
 
     def onEvent(self, event):
-        if event == 'pin_entered':
+        print("InitState")
+        if int(event[0]) == 1:
             return StandbyState()
 
         return self
@@ -53,7 +54,8 @@ class StandbyState(State):
     """
 
     def onEvent(self, event):
-        if event == 'SQUARE':
+        print("StandbyState")
+        if int(event[8]) == 1:
             return RunningState()
 
         return self

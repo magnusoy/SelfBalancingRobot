@@ -36,7 +36,7 @@ class Joystick(object):
 
     pygame.init()
     pygame.joystick.init()
-    pygame.display.set_mode([5, 7])
+    pygame.display.get_init()
 
     def __init__(self):
         """
@@ -54,7 +54,6 @@ class Joystick(object):
         except pygame.error:
             self.joystick = None
             print("Could not connect to joystick")
-        
 
     def __str__(self):
         """
@@ -93,15 +92,15 @@ class Joystick(object):
         @return an array storing the states of the buttons
         """
 
-        buttons = np.zeros(self.numOfBtns)	
+        buttons = np.zeros(self.numOfBtns)
         for event in pygame.event.get():
             for index in range(self.numOfBtns):
                 buttons[index] = self.joystick.get_button(index)
         return buttons
-    
-    def frameRate(self, rate):
+
+    def updateRate(self, rate):
         """
-        docstring
+        Adjust the update rate on the readings.
         """
 
         self.clock.tick(rate)
@@ -118,6 +117,7 @@ class Joystick(object):
 # Example of usages
 if __name__ == "__main__":
     ps4Controller = Joystick()
-    
+
     while(ps4Controller.isConnected()):
+        ps4Controller.updateRate(20)
         print(ps4Controller.readButtons())
