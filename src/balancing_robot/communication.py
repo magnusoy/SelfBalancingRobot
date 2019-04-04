@@ -72,6 +72,13 @@ class SerialCommunication(object):
         data = raw.decode('latin-1')
         return data.rstrip('\n')
 
+    def sendOutputStream(self, data):
+        """
+        Send data trough Serial.
+        """
+
+        self.connection.write(data.encode())
+
     def disconnect(self):
         """
         Disconnect the connection
@@ -84,7 +91,7 @@ class SerialCommunication(object):
 
 # Example of usage
 if __name__ == "__main__":
-    arduino = SerialCommunication("COM3", 9600)
-    
+    arduino = SerialCommunication("COM3", 115200)
+
     while(arduino.isConnected()):
         print(arduino.readInputStream())

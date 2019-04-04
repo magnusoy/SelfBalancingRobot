@@ -25,7 +25,6 @@
 """
 
 import unittest
-from src.balancing_robot.pid import PID
 
 class PidTest(unittest.TestCase):
     

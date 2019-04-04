@@ -33,12 +33,13 @@ class Eyes(object):
   docstring
   """
 
-  def __init__(self):
+  def __init__(self, capture):
     """
     docstring
     """
 
-    pass
+    self.cap = capture
+
   
   def locateFace(self):
     """
@@ -60,4 +61,14 @@ class Eyes(object):
     """
     
     pass
+  
+  def stop(self):
+        """
+        Releases the capture and close all frames running.
+        @Return True when everything is closed.
+        """
+
+        self.cap.release()
+        cv2.destroyAllWindows()
+        return True
   

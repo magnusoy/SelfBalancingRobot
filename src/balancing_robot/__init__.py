@@ -5,7 +5,7 @@
 from __future__ import print_function
 from pkg_resources import get_distribution, DistributionNotFound
 
-__all__ = ['Robot', 'Controller']
+__all__ = ['Robot', 'Controller', 'PID', 'LQR', 'Arduino', 'Raspberry Pi']
 __author__ = 'Magnus Kvendseth Øye'
 
 try:
