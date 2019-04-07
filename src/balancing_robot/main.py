@@ -26,29 +26,16 @@
 
 from communication import SerialCommunication
 from joystick import Joystick
-from pid import PID
-from motor_controller import Motor
-from robot import SelfBalancingRobot
 
 
-motor = Motor()
-mpu = SerialCommunication(port="COM3", baudrate=9600)
-ps4Controller = Joystick()
-pid = PID(input_=0.0, setPoint_=50.0, kp_=1.0, ki_=0.01, kd_=0.10, controllerDirection_="REVERSE")
-robot = SelfBalancingRobot()
+# ps4Controller = Joystick()
+arduino = SerialCommunication(port="COM10", baudrate=115200)
 
 
 if __name__ == "__main__":
-  while(mpu.isConnected() and ps4Controller.isConnected()):
-    btnEvents = ps4Controller.readButtons()
-    axesEvents = ps4Controller.readAxes()
-
-    robot.onEvent(btnEvents)
-    robot.onAction(axesEvents)
-
-    pid.input_ = mpu.readInputStream()
-    pid.compute()
-    motor.left(pid.output)
-    motor.right(pid.output)
-
-    
+  while(arduino.isConnected()):
+    # buttonStates = ps4Controller.readButtons()
+    buttonStates = [0, 1, 0, 0, 0]
+    data = ','.join(map(str, buttonStates))
+    arduino.sendOutputStream(data)
+    print(arduino.readInputStream())
