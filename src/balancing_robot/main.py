@@ -34,8 +34,16 @@ arduino = SerialCommunication(port="COM10", baudrate=115200)
 
 if __name__ == "__main__":
   while(arduino.isConnected()):
+    # ps4Controller.updateRate(20)
     # buttonStates = ps4Controller.readButtons()
-    buttonStates = [0, 1, 0, 0, 0]
-    data = ','.join(map(str, buttonStates))
+    #buttonValues = [buttonStates[0],
+    #                buttonStates[1],
+    #                buttonStates[2],
+    #                buttonStates[3],
+    #                buttonStates[4]]
+
+    buttonValues = [1, 1, 0, 0, 0]
+    
+    data = ','.join(map(str, buttonValues))
     arduino.sendOutputStream(data)
     print(arduino.readInputStream())

@@ -76,8 +76,8 @@ class SerialCommunication(object):
         """
         Send data trough Serial.
         """
-
-        self.connection.write(data.encode())
+        addEndmaker = data + '\n'
+        self.connection.write(addEndmaker.encode())
 
     def disconnect(self):
         """

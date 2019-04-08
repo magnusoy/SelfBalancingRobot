@@ -29,8 +29,6 @@
 #include <Adafruit_10DOF.h>
 #include <SoftwareSerial.h>
 #include <Wire.h>
-#include <MedianFilter.h>
-#include <Encoder.h>
 
 
 // Assign a unique ID to the sensors
@@ -38,15 +36,10 @@ Adafruit_10DOF                dof   = Adafruit_10DOF();
 Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
 
 //See limitations of Arduino SoftwareSerial
-SoftwareSerial serial(0, 1); // RX, TX
-
-MedianFilter filter(31, 0);
+SoftwareSerial serial(10, 11); // RX, TX
 
 RoboClaw roboclaw(&serial, 10000);
 #define motorAddress 0x80
-
-Encoder encoder0(2, 3);
-long oldPosition = -999;
 
 // Constants representing the states in the state machine
 const int S_INIT = 0;
@@ -54,7 +47,8 @@ const int S_SETUP = 1;
 const int S_RUNNING = 2;
 int currentState = S_INIT; // A variable holding the current state
 
-float pitch;
+float roll;
+uint32_t encoderCounts[2];
 
 // Defining global variables for recieving data
 boolean newData = false;
@@ -92,7 +86,7 @@ void setup() {
 void loop() {
   readStringFromSerial();
   updateButtonValues(buttonStates);
-  pitch = getPitch();
+  roll = getRoll();
 
   switch (currentState) {
 
@@ -100,14 +94,11 @@ void loop() {
       if (buttonStates[0] == 1) { // Middle button pressed
         changeState(S_SETUP);
       }
-      if ((pitch < 94) && (pitch > 86)) {
-        changeState(S_RUNNING);
-      }
       break;
 
     case S_SETUP:
       // TODO: Still able to drive
-      if (buttonStates[5] == 1) { // X button pressed
+      if ((buttonStates[5] == 1) && (abs(roll) < 45)) { // X button pressed
         // TODO: Be able to rise up
         pidEncoder.SetMode(AUTOMATIC);
         pidAngle.SetMode(AUTOMATIC);
@@ -116,22 +107,20 @@ void loop() {
       break;
 
     case S_RUNNING:
-      long encoder0 = readEncoder(myEnc);
+      readEncoders();
       pidAngle.Compute();
       driveMotor1(pidAngleOutput);
       driveMotor2(pidAngleOutput);
       if (buttonStates[1] == 1) { // Forward button pressed
-        encoder0 += 10;
-        setValueEncoder = encoder0;
+        // TODO: Drive forward
       } else if (buttonStates[2] == 1) { // Backward button pressed
-        encoder0 -= 10;
-        setValueEncoder = encoder0;
+        // TODO: Drive backward
       } else if (buttonStates[3] == 1) { // Left button pressed
         // TODO: Drive left
       } else if (buttonStates[4] == 1) { // Right button pressed
         // TODO: Drive right
       }
-      if ((buttonStates[5] == 1) || (abs(90.0 - pitch) > 30)) { // X button pressed
+      if ((buttonStates[5] == 1) || (abs(roll) > 45)) { // X button pressed
         pidEncoder.SetMode(MANUAL);
         pidAngle.SetMode(MANUAL);
         changeState(S_SETUP);
@@ -243,19 +232,21 @@ void initSensors() {
 }
 
 /**
-  Calculate pitch and roll from the raw accelerometer data
-  @return pitch in degrees
+  Calculate roll and roll from the raw accelerometer data
+  @return roll in degrees
 */
-float getPitch() {
+float getRoll() {
 
   sensors_event_t accel_event;
   sensors_vec_t   orientation;
+  float sum = 0;
 
   accel.getEvent(&accel_event);
   if (dof.accelGetOrientation(&accel_event, &orientation)) {
-    filter.in(orientation.pitch);
-    float pitch = filter.out();
-    return pitch;
+    for (int i = 0; i <= 10; i++) {
+      sum += orientation.roll;
+    }
+    return sum / 10;
   }
 }
 
@@ -264,11 +255,17 @@ float getPitch() {
   @param encoder to read
   @return encoder position
 */
-long readEncoder(Encoder enc) {
-  long newPosition = enc.read();
-  if (newPosition != oldPosition) {
-    oldPosition = newPosition;
-  }
-  return newPosition;
-}
+int32_t readEncoders() {
+  uint8_t status1, status2, status3, status4;
+  bool valid1, valid2, valid3, valid4;
 
+  //Read all the data from Roboclaw before displaying on Serial Monitor window
+  //This prevents the hardware serial interrupt from interfering with
+  //reading data using software serial.
+  int32_t enc1 = roboclaw.ReadEncM1(motorAddress, &status1, &valid1);
+  int32_t enc2 = roboclaw.ReadEncM2(motorAddress, &status2, &valid2);
+  encoderCounts[0] = enc1;
+  encoderCounts[1] = enc2;
+  // int32_t speed1 = roboclaw.ReadSpeedM1(motorAddress, &status3, &valid3);
+  // int32_t speed2 = roboclaw.ReadSpeedM2(motorAddress, &status4, &valid4);
+}
