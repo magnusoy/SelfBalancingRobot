@@ -27,7 +27,6 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_LSM303_U.h>
 #include <Adafruit_10DOF.h>
-#include <SoftwareSerial.h>
 #include <Wire.h>
 
 
@@ -36,9 +35,9 @@ Adafruit_10DOF                dof   = Adafruit_10DOF();
 Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
 
 //See limitations of Arduino SoftwareSerial
-SoftwareSerial serial(10, 11); // RX, TX
+#define HWSERIAL Serial1 // RX, TX (0, 1)
 
-RoboClaw roboclaw(&serial, 10000);
+RoboClaw roboclaw(&HWSERIAL, 10000);
 #define MOTOR_DRIVER 0x80
 #define STOP_MOTOR 64
 
@@ -61,11 +60,6 @@ char receivedChars[numChars]; // An array to store the received data
 const byte numButtons = 5;
 int buttonStates[numButtons] = {0, 0, 0, 0, 0};
 
-// PID Controller Encoder
-double kp_E = 0.28; double ki_E = 0.1; double kd_E = 0.62;
-double actualValueEncoder = 0.0; double setValueEncoder = 0.0; double PIDOutputEncoder = 0.0;
-PID pidEncoder(&actualValueEncoder, &PIDOutputEncoder, &setValueEncoder, kp_E, ki_E, kd_E, DIRECT);
-
 // PID Controller Angle
 #define PID_ANGLE_OUTPUT_LOW 0
 #define PID_ANGLE_OUTPUT_HIGH 127
@@ -74,21 +68,21 @@ double actualValueAngle = 0.0; double setValueAngle = 2.25; double pidAngleOutpu
 PID pidAngle(&actualValueAngle, &pidAngleOutput, &setValueAngle, kp_A, ki_A, kd_A, REVERSE);
 
 void setup() {
-  initSensors();
-  roboclaw.begin(115200);
   Serial.begin(115200);
-
-  pidEncoder.SetMode(AUTOMATIC);
+  roboclaw.begin(115200);
+  initSensors();
+  
   pidAngle.SetMode(AUTOMATIC);
-  pidEncoder.SetSampleTime(1);
   pidAngle.SetSampleTime(1);
   pidAngle.SetOutputLimits(PID_ANGLE_OUTPUT_LOW, PID_ANGLE_OUTPUT_HIGH);
 }
 
 void loop() {
+  unsigned long s = millis();
   readStringFromSerial();
   updateButtonValues();
-  roll = getRoll();
+  
+  roll = getAccurateRoll();
 
   switch (currentState) {
 
@@ -106,21 +100,12 @@ void loop() {
       break;
 
     case S_RUNNING:
-      readEncoders();
+      // readEncoders();
       actualValueAngle = roll;
       pidAngle.Compute();
       driveMotor1(pidAngleOutput);
       driveMotor2(pidAngleOutput);
 
-      if (buttonStates[1] == 1) { // Forward button pressed
-        // TODO: Drive forward
-      } else if (buttonStates[2] == 1) { // Backward button pressed
-        // TODO: Drive backward
-      } else if (buttonStates[3] == 1) { // Left button pressed
-        // TODO: Drive left
-      } else if (buttonStates[4] == 1) { // Right button pressed
-        // TODO: Drive right
-      }
       if ((buttonStates[5] == 1) || (abs(roll) > 45)) { // X button pressed
         driveMotor1(STOP_MOTOR);
         driveMotor2(STOP_MOTOR);
@@ -131,6 +116,9 @@ void loop() {
     default:
       changeState(S_INIT);
   }
+  unsigned long st = millis();
+  Serial.println(st - s);
+
 }
 
 /**
@@ -215,7 +203,7 @@ void initSensors() {
   Calculate roll and roll from the raw accelerometer data
   @return roll in degrees
 */
-float getRoll() {
+float getAccurateRoll() {
 
   sensors_event_t accel_event;
   sensors_vec_t   orientation;

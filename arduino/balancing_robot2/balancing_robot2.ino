@@ -256,7 +256,7 @@ float getRoll() {
   @param encoder to read
   @return encoder position
 */
-int32_t readEncoders() {
+void readEncoders() {
   uint8_t status1, status2, status3, status4;
   bool valid1, valid2, valid3, valid4;
 

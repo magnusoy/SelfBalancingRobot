@@ -1,0 +1,25 @@
+#######################################
+# Syntax Coloring Map For KalmanFilter
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+KalmanFilter	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+in	KEYWORD2
+out	KEYWORD2
+setInputError  KEYWORD2
+setEstimateError  KEYWORD2
+setProcessNoise  KEYWORD2
+getKalmanGain  KEYWORD2
+getEstimateError  KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
