@@ -51,6 +51,8 @@ int currentState = S_SETUP; // A variable holding the current state
 // Variables storing sensor data
 float roll;
 uint32_t encoderCounts[2];
+uint32_t motorSpeeds[2];
+float currentPosition;
 
 // Variables for recieving data
 boolean newData = false;
@@ -61,16 +63,21 @@ char receivedChars[numChars]; // An array to store the received data
 const byte numButtons = 5;
 int buttonStates[numButtons] = {0, 0, 0, 0, 0};
 
-// PID Controller Encoder
-double kp_E = 0.28; double ki_E = 0.1; double kd_E = 0.62;
-double actualValueEncoder = 0.0; double setValueEncoder = 0.0; double PIDOutputEncoder = 0.0;
-PID pidEncoder(&actualValueEncoder, &PIDOutputEncoder, &setValueEncoder, kp_E, ki_E, kd_E, DIRECT);
+// PID Controller Position
+double kp_P = 2.0; double ki_P = 0.12; double kd_P = 2.0;
+double actualValuePosition = 0.0; double setValuePosition = 0.0; double PIDPositionOutput = 0.0;
+PID pidPosition(&actualValuePosition, &PIDPositionOutput, &setValuePosition, kp_P, ki_P, kd_P, DIRECT);
+
+// PID Controller Speed
+double kp_S = 900; double ki_S = 0.0; double kd_S = 0.0;
+double actualValueSpeed = 0.0; double setValueSpeed = 0.0; double PIDSpeedOutput = 0.0;
+PID pidSpeed(&actualValueSpeed, &PIDSpeedOutput, &setValueSpeed, kp_S, ki_S, kd_S, DIRECT);
 
 // PID Controller Angle
-#define PID_ANGLE_OUTPUT_LOW 0
-#define PID_ANGLE_OUTPUT_HIGH 127
-double kp_A = 4.0; double ki_A = 0.0; double kd_A = 0.0;
-double actualValueAngle = 0.0; double setValueAngle = 2.25; double pidAngleOutput = 0.0;
+#define PID_OUTPUT_LOW 0
+#define PID_OUTPUT_HIGH 127
+double kp_A = 8.0; double ki_A = 1.5; double kd_A = 0.0;
+double actualValueAngle = 0.0; double setValueAngle = 2.3; double pidAngleOutput = 0.0;
 PID pidAngle(&actualValueAngle, &pidAngleOutput, &setValueAngle, kp_A, ki_A, kd_A, REVERSE);
 
 void setup() {
@@ -78,11 +85,14 @@ void setup() {
   roboclaw.begin(115200);
   Serial.begin(115200);
 
-  pidEncoder.SetMode(AUTOMATIC);
+  pidPosition.SetMode(AUTOMATIC);
   pidAngle.SetMode(AUTOMATIC);
-  pidEncoder.SetSampleTime(1);
+  pidSpeed.SetMode(AUTOMATIC);
+  
+  pidPosition.SetSampleTime(1);
   pidAngle.SetSampleTime(1);
-  pidAngle.SetOutputLimits(PID_ANGLE_OUTPUT_LOW, PID_ANGLE_OUTPUT_HIGH);
+  pidSpeed.SetSampleTime(1);
+  pidAngle.SetOutputLimits(PID_OUTPUT_LOW, PID_OUTPUT_HIGH);
 }
 
 void loop() {
@@ -106,21 +116,32 @@ void loop() {
       break;
 
     case S_RUNNING:
-      readEncoders();
       actualValueAngle = roll;
+      
+      actualValuePosition = encoderCounts[0];
+      pidPosition.Compute();
+      
+      actualValueSpeed = motorSpeeds[0];
+      setValueSpeed = PIDPositionOutput;
+      pidSpeed.Compute();
+      
+      setValueAngle = PIDSpeedOutput;
       pidAngle.Compute();
+      
+      readEncoders();
       driveMotor1(pidAngleOutput);
       driveMotor2(pidAngleOutput);
 
       if (buttonStates[1] == 1) { // Forward button pressed
-        // TODO: Drive forward
+        setValuePosition += 50;
       } else if (buttonStates[2] == 1) { // Backward button pressed
-        // TODO: Drive backward
+        setValuePosition -= 50;
       } else if (buttonStates[3] == 1) { // Left button pressed
         // TODO: Drive left
       } else if (buttonStates[4] == 1) { // Right button pressed
         // TODO: Drive right
       }
+      
       if ((buttonStates[5] == 1) || (abs(roll) > 45)) { // X button pressed
         driveMotor1(STOP_MOTOR);
         driveMotor2(STOP_MOTOR);
@@ -223,10 +244,10 @@ float getRoll() {
 
   accel.getEvent(&accel_event);
   if (dof.accelGetOrientation(&accel_event, &orientation)) {
-    for (int i = 0; i <= 50; i++) {
+    for (int i = 0; i <= 10; i++) {
       sum += orientation.roll;
     }
-    return sum / 50;
+    return sum / 10;
   }
 }
 
@@ -244,8 +265,11 @@ int32_t readEncoders() {
   //reading data using software serial.
   int32_t enc1 = roboclaw.ReadEncM1(MOTOR_DRIVER, &status1, &valid1);
   int32_t enc2 = roboclaw.ReadEncM2(MOTOR_DRIVER, &status2, &valid2);
+  int32_t speed1 = roboclaw.ReadSpeedM1(MOTOR_DRIVER, &status3, &valid3);
+  int32_t speed2 = roboclaw.ReadSpeedM2(MOTOR_DRIVER, &status4, &valid4);
   encoderCounts[0] = enc1;
   encoderCounts[1] = enc2;
-  // int32_t speed1 = roboclaw.ReadSpeedM1(MOTOR_DRIVER, &status3, &valid3);
-  // int32_t speed2 = roboclaw.ReadSpeedM2(MOTOR_DRIVER, &status4, &valid4);
+  motorSpeeds[0] = speed1;
+  motorSpeeds[1] = speed2;
+
 }
