@@ -1,0 +1,23 @@
+#######################################
+# Syntax Coloring Map For KalmanFilter
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+ComplementaryFilter	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+in	KEYWORD2
+out	KEYWORD2
+setFilterAngle  KEYWORD2
+setDt  KEYWORD2
+setTimeConstant  KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################

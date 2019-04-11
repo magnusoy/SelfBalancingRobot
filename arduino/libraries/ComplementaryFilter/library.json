@@ -1,0 +1,19 @@
+{
+    "name": "KalmanFilter",
+    "keywords": "Kalman, Filter, signal",
+    "description": "'Kalman Filter used for signal processing.",
+    "url": "https://github.com/magnusoy/Arduino-KalmanFilter-Library",
+    "include": "KalmanFilter",
+    "authors":
+    [
+      {
+        "name": "Magnus Kvendseth Øye"
+      }
+    ],
+    "repository":
+    {
+      "type": "git",
+      "url": "https://github.com/magnusoy/Arduino-KalmanFilter-Library.git"
+    },
+    "frameworks": "arduino"
+  }
