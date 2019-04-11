@@ -78,7 +78,6 @@ void setup() {
 }
 
 void loop() {
-  unsigned long s = millis();
   readStringFromSerial();
   updateButtonValues();
   
@@ -116,8 +115,6 @@ void loop() {
     default:
       changeState(S_INIT);
   }
-  unsigned long st = millis();
-  Serial.println(st - s);
 
 }
 

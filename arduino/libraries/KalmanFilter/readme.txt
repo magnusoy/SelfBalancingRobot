@@ -8,12 +8,12 @@ Arduino/lib/targets/libraries folder.
 
 When installed, this library should look like:
 
-Arduino/lib/targets/libraries/KalmanFilter                      (this library's folder)
-Arduino/lib/targets/libraries/KalmanFilter/KalmanFilter.cpp     (the library implementation file)
-Arduino/lib/targets/libraries/KalmanFilter/KalmanFilter.h       (the library description file)
-Arduino/lib/targets/libraries/KalmanFilter/keywords.txt         (the syntax coloring file)
-Arduino/lib/targets/libraries/KalmanFilter/examples             (the examples in the "open" menu)
-Arduino/lib/targets/libraries/KalmanFilter/readme.txt           (this file)
+Arduino/libraries/KalmanFilter                      (this library's folder)
+Arduino/libraries/KalmanFilter/KalmanFilter.cpp     (the library implementation file)
+Arduino/libraries/KalmanFilter/KalmanFilter.h       (the library description file)
+Arduino/libraries/KalmanFilter/keywords.txt         (the syntax coloring file)
+Arduino/libraries/KalmanFilter/examples             (the examples in the "open" menu)
+Arduino/libraries/KalmanFilter/readme.txt           (this file)
 
 Building
 --------------------------------------------------------------------------------

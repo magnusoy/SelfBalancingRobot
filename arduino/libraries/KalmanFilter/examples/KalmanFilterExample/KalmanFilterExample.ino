@@ -1,10 +1,12 @@
 #include <KalmanFilter.h>
 
+#include <KalmanFilter.h>
+
 KalmanFilter kalmanFilter(2, 2, 0.01);
 
 // Serial output refresh time
-const long SERIAL_REFRESH_TIME = 100;
-long refresh_time;
+const unsigned long SERIAL_REFRESH_TIME = 100;
+unsigned long refresh_time;
 
 void setup() {
   Serial.begin(115200);
