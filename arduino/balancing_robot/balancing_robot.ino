@@ -26,122 +26,84 @@
 #include <PID_v1.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_LSM303_U.h>
+#include <Adafruit_L3GD20_U.h>
 #include <Adafruit_10DOF.h>
+#include <SoftwareSerial.h>
 #include <Wire.h>
-
+#include <KalmanFilter.h>
 
 // Assign a unique ID to the sensors
 Adafruit_10DOF                dof   = Adafruit_10DOF();
 Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
+Adafruit_L3GD20_Unified       gyro  = Adafruit_L3GD20_Unified(20);
 
+//#define HWSERIAL Serial1 // RX, TX (0, 1)
 //See limitations of Arduino SoftwareSerial
-#define HWSERIAL Serial1 // RX, TX (0, 1)
+SoftwareSerial serial(10, 11);
 
-RoboClaw roboclaw(&HWSERIAL, 10000);
+RoboClaw roboclaw(&serial, 10000);
 #define MOTOR_DRIVER 0x80
 #define STOP_MOTOR 64
 
+KalmanFilter kalmanFilter(2, 2, 0.01);
+
 // Constants representing the states in the state machine
 const int S_INIT = 0;
-const int S_SETUP = 1;
-const int S_RUNNING = 2;
-int currentState = S_SETUP; // A variable holding the current state
+const int S_RUNNING = 1;
+int currentState = S_INIT; // A variable holding the current state
 
-// Variables storing sensor data
-float roll;
-uint32_t encoderCounts[2];
-
-// Variables for recieving data
-boolean newData = false;
-const byte numChars = 32;
-char receivedChars[numChars]; // An array to store the received data
-
-// Variables holding buttonvalues
-const byte numButtons = 5;
-int buttonStates[numButtons] = {0, 0, 0, 0, 0};
+double gyroY;
+double accelY;
+unsigned long t0 = micros();
+unsigned long t1 = 0;
+float filteredOutput;
+const float ALPHA = 0.98;
 
 // PID Controller Angle
 #define PID_ANGLE_OUTPUT_LOW 0
 #define PID_ANGLE_OUTPUT_HIGH 127
-double kp_A = 4.0; double ki_A = 0.0; double kd_A = 0.0;
-double actualValueAngle = 0.0; double setValueAngle = 2.25; double pidAngleOutput = 0.0;
-PID pidAngle(&actualValueAngle, &pidAngleOutput, &setValueAngle, kp_A, ki_A, kd_A, REVERSE);
+double kp = 65.0; double ki = 11.0; double kd = 0.0;
+double actualValueAngle = 0.0; double setValueAngle = 0.0; double pidAngleOutput = 0.0;
+PID pid(&actualValueAngle, &pidAngleOutput, &setValueAngle, kp, ki, kd, REVERSE);
 
 void setup() {
   Serial.begin(115200);
   roboclaw.begin(115200);
   initSensors();
-  
-  pidAngle.SetMode(AUTOMATIC);
-  pidAngle.SetSampleTime(1);
-  pidAngle.SetOutputLimits(PID_ANGLE_OUTPUT_LOW, PID_ANGLE_OUTPUT_HIGH);
+
+  pid.SetMode(AUTOMATIC);
+  pid.SetSampleTime(1);
+  pid.SetOutputLimits(PID_ANGLE_OUTPUT_LOW, PID_ANGLE_OUTPUT_HIGH);
 }
 
 void loop() {
-  readStringFromSerial();
-  updateButtonValues();
-  
-  roll = getAccurateRoll();
+  updateSensors();
+  actualValueAngle = complementaryFilter(gyroY, accelY, ALPHA);
 
   switch (currentState) {
-
     case S_INIT:
-      if (buttonStates[0] == 1) { // Middle button pressed
-        changeState(S_SETUP);
-      }
-      break;
-
-    case S_SETUP:
-      // TODO: Still able to drive
-      if ((buttonStates[5] == 1) || (abs(roll) < 45)) { // X button pressed
+      if (abs(actualValueAngle) < 7) {
         changeState(S_RUNNING);
       }
       break;
 
     case S_RUNNING:
-      // readEncoders();
-      actualValueAngle = roll;
-      pidAngle.Compute();
+      pid.Compute();
+
+      printShit(pidAngleOutput);
+
       driveMotor1(pidAngleOutput);
       driveMotor2(pidAngleOutput);
 
-      if ((buttonStates[5] == 1) || (abs(roll) > 45)) { // X button pressed
+      if (abs(actualValueAngle) > 7) {
         driveMotor1(STOP_MOTOR);
         driveMotor2(STOP_MOTOR);
-        changeState(S_SETUP);
+        changeState(S_INIT);
       }
       break;
-
-    default:
-      changeState(S_INIT);
-  }
-
-}
-
-/**
-  Reads a string from Serial Monitor.
-*/
-void readStringFromSerial() {
-  static byte ndx = 0;
-  char endMarker = '\n';
-  char rc;
-
-  while ((Serial.available() > 0) && (!newData)) {
-    rc = Serial.read();
-
-    if (rc != endMarker) {
-      receivedChars[ndx] = rc;
-      ndx++;
-      if (ndx >= numChars) {
-        ndx = numChars - 1;
-      }
-    } else {
-      receivedChars[ndx] = '\0'; // Terminate the string
-      ndx = 0;
-      newData = true;
-    }
   }
 }
+
 
 /**
   Drive motor 1 both directions with the given speed.
@@ -170,21 +132,6 @@ void changeState(int newState) {
 }
 
 /**
-  Reads from the recived char array and
-  fills an array with the stored values.
-*/
-void updateButtonValues() {
-  if (newData) {
-    buttonStates[0] = receivedChars[0];
-    buttonStates[1] = receivedChars[2];
-    buttonStates[2] = receivedChars[4];
-    buttonStates[3] = receivedChars[6];
-    buttonStates[4] = receivedChars[8];
-  }
-  newData = false;
-}
-
-/**
   Initialize sensors.
 */
 void initSensors() {
@@ -194,43 +141,35 @@ void initSensors() {
     Serial.println(F("Ooops, no LSM303 detected ... Check your wiring!"));
     while (1);
   }
-}
 
-/**
-  Calculate roll and roll from the raw accelerometer data
-  @return roll in degrees
-*/
-float getAccurateRoll() {
-
-  sensors_event_t accel_event;
-  sensors_vec_t   orientation;
-  float sum = 0;
-
-  accel.getEvent(&accel_event);
-  if (dof.accelGetOrientation(&accel_event, &orientation)) {
-    for (int i = 0; i <= 50; i++) {
-      sum += orientation.roll;
-    }
-    return sum / 50;
+  if (!gyro.begin())
+  {
+    /* There was a problem detecting the L3GD20 ... check your connections */
+    Serial.print("Ooops, no L3GD20 detected ... Check your wiring or I2C ADDR!");
+    while (1);
   }
 }
 
-/**
-  Reads the encoder position.
-  @param encoder to read
-  @return encoder position
-*/
-int32_t readEncoders() {
-  uint8_t status1, status2, status3, status4;
-  bool valid1, valid2, valid3, valid4;
+void updateSensors() {
+  sensors_event_t event;
+  gyro.getEvent(&event);
+  gyroY = event.gyro.x;
 
-  //Read all the data from Roboclaw before displaying on Serial Monitor window
-  //This prevents the hardware serial interrupt from interfering with
-  //reading data using software serial.
-  int32_t enc1 = roboclaw.ReadEncM1(MOTOR_DRIVER, &status1, &valid1);
-  int32_t enc2 = roboclaw.ReadEncM2(MOTOR_DRIVER, &status2, &valid2);
-  encoderCounts[0] = enc1;
-  encoderCounts[1] = enc2;
-  // int32_t speed1 = roboclaw.ReadSpeedM1(MOTOR_DRIVER, &status3, &valid3);
-  // int32_t speed2 = roboclaw.ReadSpeedM2(MOTOR_DRIVER, &status4, &valid4);
+  accel.getEvent(&event);
+  accelY = event.acceleration.y;
+}
+
+double complementaryFilter(double gyro, double accel, float alpha) {
+  int dt = t1 - t0;
+  filteredOutput = alpha * (filteredOutput + gyro * dt / 1000000) + (1 - alpha) * accel;
+  t0 = t1;
+  return filteredOutput;
+}
+
+void printShit(double newOutput) {
+  Serial.print(actualValueAngle);
+  Serial.print(",");
+  Serial.print(setValueAngle);
+  Serial.print(",");
+  Serial.println(newOutput);
 }

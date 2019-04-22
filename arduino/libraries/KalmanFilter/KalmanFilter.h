@@ -1,7 +1,11 @@
 #ifndef _KALMANFILTER_H_
 #define _KALMANFILTER_H_
 
-#include "Arduino.h"
+#if (ARDUINO >= 100)
+ #include "Arduino.h"
+#else
+ #include "WProgram.h"
+#endif
 
 class KalmanFilter {
 

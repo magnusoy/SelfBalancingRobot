@@ -26,21 +26,27 @@
 #include <PID_v1.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_LSM303_U.h>
+#include <Adafruit_L3GD20_U.h>
 #include <Adafruit_10DOF.h>
 #include <SoftwareSerial.h>
 #include <Wire.h>
+#include <KalmanFilter.h>
 
 
 // Assign a unique ID to the sensors
 Adafruit_10DOF                dof   = Adafruit_10DOF();
 Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
+Adafruit_L3GD20_Unified       gyro  = Adafruit_L3GD20_Unified(20);
 
+//#define HWSERIAL Serial1 // RX, TX (0, 1)
 //See limitations of Arduino SoftwareSerial
-SoftwareSerial serial(10, 11); // RX, TX
+SoftwareSerial serial(10, 11);
 
 RoboClaw roboclaw(&serial, 10000);
 #define MOTOR_DRIVER 0x80
 #define STOP_MOTOR 64
+
+KalmanFilter kalmanFilter(2, 2, 0.01);
 
 // Constants representing the states in the state machine
 const int S_INIT = 0;
@@ -49,10 +55,15 @@ const int S_RUNNING = 2;
 int currentState = S_SETUP; // A variable holding the current state
 
 // Variables storing sensor data
-float roll;
 uint32_t encoderCounts[2];
 uint32_t motorSpeeds[2];
-float currentPosition;
+
+double gyroY;
+double accelY;
+unsigned long t0 = micros();
+unsigned long t1 = 0;
+float filteredOutput;
+const float ALPHA = 0.95;
 
 // Variables for recieving data
 boolean newData = false;
@@ -64,7 +75,7 @@ const byte numButtons = 5;
 int buttonStates[numButtons] = {0, 0, 0, 0, 0};
 
 // PID Controller Position
-double kp_P = 2.0; double ki_P = 0.12; double kd_P = 2.0;
+double kp_P = 20.0; double ki_P = 0.02; double kd_P = 2.0;
 double actualValuePosition = 0.0; double setValuePosition = 0.0; double PIDPositionOutput = 0.0;
 PID pidPosition(&actualValuePosition, &PIDPositionOutput, &setValuePosition, kp_P, ki_P, kd_P, DIRECT);
 
@@ -76,19 +87,19 @@ PID pidSpeed(&actualValueSpeed, &PIDSpeedOutput, &setValueSpeed, kp_S, ki_S, kd_
 // PID Controller Angle
 #define PID_OUTPUT_LOW 0
 #define PID_OUTPUT_HIGH 127
-double kp_A = 8.0; double ki_A = 1.5; double kd_A = 0.0;
-double actualValueAngle = 0.0; double setValueAngle = 2.3; double pidAngleOutput = 0.0;
+double kp_A = 90.0; double ki_A = 0.01; double kd_A = 0.08;
+double actualValueAngle = 0.0; double setValueAngle = 0.03; double pidAngleOutput = 0.0;
 PID pidAngle(&actualValueAngle, &pidAngleOutput, &setValueAngle, kp_A, ki_A, kd_A, REVERSE);
 
 void setup() {
-  initSensors();
   roboclaw.begin(115200);
-  Serial.begin(115200);
+  Serial.begin(9600);
+  initSensors();
 
   pidPosition.SetMode(AUTOMATIC);
   pidAngle.SetMode(AUTOMATIC);
   pidSpeed.SetMode(AUTOMATIC);
-  
+
   pidPosition.SetSampleTime(1);
   pidAngle.SetSampleTime(1);
   pidSpeed.SetSampleTime(1);
@@ -98,7 +109,8 @@ void setup() {
 void loop() {
   readStringFromSerial();
   updateButtonValues();
-  roll = getRoll();
+  updateSensors();
+  actualValueAngle = complementaryFilter(gyroY, accelY, ALPHA);
 
   switch (currentState) {
 
@@ -109,26 +121,28 @@ void loop() {
       break;
 
     case S_SETUP:
-      // TODO: Still able to drive
-      if ((buttonStates[5] == 1) || (abs(roll) < 45)) { // X button pressed
+      if ((buttonStates[5] == 1) || (abs(actualValueAngle) <= 7)) { // X button pressed
         changeState(S_RUNNING);
       }
       break;
 
     case S_RUNNING:
-      actualValueAngle = roll;
       
+
       actualValuePosition = encoderCounts[0];
       pidPosition.Compute();
-      
+
       actualValueSpeed = motorSpeeds[0];
       setValueSpeed = PIDPositionOutput;
       pidSpeed.Compute();
-      
+
       setValueAngle = PIDSpeedOutput;
       pidAngle.Compute();
-      
+
       readEncoders();
+      //kalmanFilter.in(pidAngleOutput);
+      //double newOutput = kalmanFilter.out();
+
       driveMotor1(pidAngleOutput);
       driveMotor2(pidAngleOutput);
 
@@ -141,17 +155,15 @@ void loop() {
       } else if (buttonStates[4] == 1) { // Right button pressed
         // TODO: Drive right
       }
-      
-      if ((buttonStates[5] == 1) || (abs(roll) > 45)) { // X button pressed
+
+      if ((buttonStates[5] == 1) || (abs(actualValueAngle) >= 7)) { // X button pressed
         driveMotor1(STOP_MOTOR);
         driveMotor2(STOP_MOTOR);
         changeState(S_SETUP);
       }
       break;
-
-    default:
-      changeState(S_INIT);
   }
+  //Serial.println(actualValueAngle);
 }
 
 /**
@@ -230,25 +242,28 @@ void initSensors() {
     Serial.println(F("Ooops, no LSM303 detected ... Check your wiring!"));
     while (1);
   }
+
+  if (!gyro.begin())
+  {
+    /* There was a problem detecting the L3GD20 ... check your connections */
+    Serial.print("Ooops, no L3GD20 detected ... Check your wiring or I2C ADDR!");
+    while (1);
+  }
 }
 
-/**
-  Calculate roll and roll from the raw accelerometer data
-  @return roll in degrees
-*/
-float getRoll() {
+void updateSensors() {
+  sensors_event_t event;
+  gyro.getEvent(&event);
+  gyroY = event.gyro.y;
 
-  sensors_event_t accel_event;
-  sensors_vec_t   orientation;
-  float sum = 0;
-
-  accel.getEvent(&accel_event);
-  if (dof.accelGetOrientation(&accel_event, &orientation)) {
-    for (int i = 0; i <= 10; i++) {
-      sum += orientation.roll;
-    }
-    return sum / 10;
-  }
+  accel.getEvent(&event);
+  accelY = event.acceleration.y;
+}
+double complementaryFilter(double gyro, double accel, float alpha) {
+  int dt = t1 - t0;
+  filteredOutput = alpha * (filteredOutput + gyro * dt / 1000000) + (1 - alpha) * accel;
+  t0 = t1;
+  return filteredOutput;
 }
 
 /**

@@ -1,29 +1,32 @@
-#ifndef ComplementaryFilter
-#define ComplementaryFilter
+#ifndef _COMPLEMENTARYFILTER_H_
+#define _COMPLEMENTARYFILTER_H_
+
+#if (ARDUINO >= 100)
+ #include "Arduino.h"
+#else
+ #include "WProgram.h"
+#endif
 
 class ComplementaryFilter {
 public:
-	ComplementaryFilter(double filterAngle, double timeConstant, double dt);
-	void in(double angle, double rate);
-	double out();
-	void setFilterAngle(double filterAngle);
-	void setDt(double dt);
-	void setTimeConstant(double timeConstant);
+	ComplementaryFilter(const double HIGHPASS_COEFFICIENT=0.8, const double LOWPASS_COEFFICIENT=0.2);
+	void in(double gyro, double accel, int dt);
+	double out(void);
+	void setDt(int dt);
 
 private:
-	double filterTerm0;
-	double filterTerm1;
-	double filterTerm2;
-	double _timeConstant;
-	double _angle;
-	double _rate;
-	double _lastCompTime = 0;
-	double _filterAngle;
-	double _dt;
-	double _output;
+	const double _HIGHPASS_COEFFICIENT;
+	const double LOWPASS_COEFFICIENT;
+	int _dt;
+	double _filteredOutput:
+	double _gyro;
+	double _accel;
+
+	
+
 };
 
-#endif
+#endif // _COMPLEMENTARYFILTER_H_
 
 
 

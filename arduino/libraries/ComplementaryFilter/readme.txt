@@ -8,12 +8,12 @@ Arduino/lib/targets/libraries folder.
 
 When installed, this library should look like:
 
-Arduino/lib/targets/libraries/ComplementaryFilter                             (this library's folder)
-Arduino/lib/targets/libraries/ComplementaryFilter/ComplementaryFilter.cpp     (the library implementation file)
-Arduino/lib/targets/libraries/ComplementaryFilter/ComplementaryFilter.h       (the library description file)
-Arduino/lib/targets/libraries/ComplementaryFilter/keywords.txt                (the syntax coloring file)
-Arduino/lib/targets/libraries/ComplementaryFilter/examples                    (the examples in the "open" menu)
-Arduino/lib/targets/libraries/ComplementaryFilter/readme.txt                  (this file)
+Arduino/libraries/ComplementaryFilter                             (this library's folder)
+Arduino/libraries/ComplementaryFilter/ComplementaryFilter.cpp     (the library implementation file)
+Arduino/libraries/ComplementaryFilter/ComplementaryFilter.h       (the library description file)
+Arduino/libraries/ComplementaryFilter/keywords.txt                (the syntax coloring file)
+Arduino/libraries/ComplementaryFilter/examples                    (the examples in the "open" menu)
+Arduino/libraries/ComplementaryFilter/readme.txt                  (this file)
 
 Building
 --------------------------------------------------------------------------------
