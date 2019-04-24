@@ -5,21 +5,28 @@
 #include <PID_v1.h>
 #include <Filters.h>
 #include <Encoder.h>
+#include <digitalWriteFast.h>
 
 // Defining motor and encoder pins
-const int EN1 = 10; const int EN2 = 9;
-const int DIR1 = 12; const int DIR2 = 7;
+#define EN1 10
+#define EN2 9
+#define DIR1 12
+#define DIR2 7
 
 #define S1A  2
 #define S2A  5
 #define S1B  3
 #define S2B  6
 
-Encoder leftEncoder(S1A, S1B);
-Encoder rightEncoder(S2A, S2B);
+Encoder rightEncoder(S1A, S1B);
+Encoder leftEncoder(S2A, S2B);
 
-unsigned long oldPositionLeft = -999;
-unsigned long oldPositionRight = -999;
+long oldPositionRight = -999;
+long oldPositionLeft = -999;
+
+
+long speedLeft = 0;
+long speedRight = 0;
 // filters out changes faster that 1.6 Hz.
 float filterFrequency = 1.6;
 
@@ -37,12 +44,13 @@ KalmanFilter kalmanFilter(2, 2, 0.1);
 #define LSM9DS1_AG  0x6B // Would be 0x6A if SDO_AG is LOW
 
 // PID Controller Angle
-#define PID_ANGLE_OUTPUT_LOW 0
-#define PID_ANGLE_OUTPUT_HIGH 255
-double kp = 5.0; double ki = 0.0; double kd = 0.0;
-double actualValueAngle = 0.0; double setValueAngle = 90.0; double pidAngleOutput = 0.0;
-PID pid(&actualValueAngle, &pidAngleOutput, &setValueAngle, kp, ki, kd, DIRECT);
+#define PID_ANGLE_OUTPUT_LOW -255.0
+#define PID_ANGLE_OUTPUT_HIGH 255.0
+double kp = 10.0; double ki = 0.0; double kd = 0.1;
+double actualValueAngle = 0.0; double setValueAngle = 100.0; double pidAngleOutput = 0.0;
+PID pid(&actualValueAngle, &pidAngleOutput, &setValueAngle, kp, ki, kd, REVERSE);
 
+long t0 = 0;
 
 // Constants representing the states in the state machine
 const int S_INIT = 0;
@@ -55,24 +63,19 @@ void setup() {
   initMotorShield();
 
   pid.SetMode(AUTOMATIC);
-  pid.SetSampleTime(5);
+  pid.SetSampleTime(4);
   pid.SetOutputLimits(PID_ANGLE_OUTPUT_LOW, PID_ANGLE_OUTPUT_HIGH);
 }
 
 void loop() {
   updateSensors();
-  double angle = getAngle(imu.ay, imu.az);
-  kalmanFilter.in(angle);
-  double dd = kalmanFilter.out();
-  lowpassFilter.input(dd);
-  actualValueAngle = lowpassFilter.output();
-  actualValueAngle = actualValueAngle * -1;
-  //Serial.println(actualValueAngle);
+  filterAngle();
+  readEncoders();
 
   switch (currentState) {
     case S_INIT:
+      turnOffMotors();
       if (abs(actualValueAngle - setValueAngle) < 50) {
-        turnOnMotors();
         changeState(S_RUNNING);
       }
       break;
@@ -82,11 +85,13 @@ void loop() {
       }
       if (abs(actualValueAngle - setValueAngle) > 50) {
         turnOffMotors();
+        resetPosition();
         changeState(S_INIT);
       }
       break;
   }
   //printData();
+  Serial.println(speedLeft);
 }
 
 void updateGyroReadings() {
@@ -115,13 +120,13 @@ void initSensors() {
 }
 
 void initMotorShield() {
-  pinMode(EN1, OUTPUT);
-  pinMode(EN2, OUTPUT);
-  pinMode(DIR1, OUTPUT);
-  pinMode(DIR2, OUTPUT);
+  pinModeFast(EN1, OUTPUT);
+  pinModeFast(EN2, OUTPUT);
+  pinModeFast(DIR1, OUTPUT);
+  pinModeFast(DIR2, OUTPUT);
 
-  digitalWrite(EN1, LOW);
-  digitalWrite(EN2, LOW);
+  digitalWriteFast(EN1, LOW);
+  digitalWriteFast(EN2, LOW);
 }
 
 void updateSensors() {
@@ -135,19 +140,20 @@ void printData() {
   Serial.print(setValueAngle);
   Serial.print(",");
   Serial.println(pidAngleOutput);
-  //delay(100);
 }
 
 void runMotors(double driveRate) {
-  if (actualValueAngle > 0) {
-    digitalWrite(DIR1, HIGH);
-    digitalWrite(DIR2, HIGH);
+  double driveOutput = driveRate;
+  if (actualValueAngle > setValueAngle) {
+    digitalWriteFast(DIR1, LOW);
+    digitalWriteFast(DIR2, LOW);
   } else {
-    digitalWrite(DIR1, LOW);
-    digitalWrite(DIR2, LOW);
+    digitalWriteFast(DIR1, HIGH);
+    digitalWriteFast(DIR2, HIGH);
+    driveOutput *= -1;
   }
-  analogWrite(EN1, driveRate);
-  analogWrite(EN2, driveRate);
+  analogWrite(EN1, driveOutput);
+  analogWrite(EN2, driveOutput);
 }
 
 void changeState(int newState) {
@@ -155,22 +161,45 @@ void changeState(int newState) {
 }
 
 void readEncoders() {
-  unsigned long newPositionLeft = leftEncoder.read();
-  unsigned long newPositionRight = rightEncoder.read();
+  long newPositionLeft = leftEncoder.read();
+  long newPositionRight = rightEncoder.read();
+  readSpeed(newPositionLeft, newPositionRight);
   if (newPositionLeft != oldPositionLeft) {
     oldPositionLeft = newPositionLeft;
   }
   if (newPositionRight != oldPositionRight) {
     oldPositionRight = newPositionRight;
   }
+  
 }
 
 void turnOffMotors() {
-  digitalWrite(EN1, LOW);
-  digitalWrite(EN2, LOW);
+  digitalWriteFast(EN1, LOW);
+  digitalWriteFast(EN2, LOW);
 }
 
 void turnOnMotors() {
-  digitalWrite(EN1, HIGH);
-  digitalWrite(EN2, HIGH);
+  digitalWriteFast(EN1, HIGH);
+  digitalWriteFast(EN2, HIGH);
+}
+
+void filterAngle() {
+  double angle = getAngle(imu.ay, imu.az);
+  kalmanFilter.in(angle);
+  double kalmanAngle = kalmanFilter.out();
+  lowpassFilter.input(kalmanAngle);
+  actualValueAngle = lowpassFilter.output();
+  actualValueAngle *= -1;
+}
+
+void readSpeed(long newPositionLeft, long newPositionRight) {
+  long t1 = millis();
+  speedLeft = (newPositionLeft - oldPositionLeft) * 1000 / (t1 - t0);
+  speedRight = (newPositionRight - oldPositionRight) * 1000 / (t1 - t0);
+  t0 = t1;
+}
+
+void resetPosition() {
+  leftEncoder.write(0);
+  rightEncoder.write(0);
 }
