@@ -1,0 +1,19 @@
+GPIO17 | GPIO18 -> YELLOW      -> EN1  | EN2
+GPIO27 | GPIO24 -> PURPLE      -> DIR1 | DIR2
+GPIO22 | GPIO23 -> BLUE        -> S1A  | S2A
+GPIO09 | GPIO25 -> WHITE/BROWN -> S1B  | S2B
+
+
+EN1 -> 10  
+EN2 -> 9  
+
+DIR1 -> 12
+DIR2 -> 7
+
+S1A -> 2
+S2A -> 5
+
+S1B -> 3
+S2B -> 6
+
+
