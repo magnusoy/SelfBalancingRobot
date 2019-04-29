@@ -74,11 +74,6 @@ char receivedChars[numChars]; // An array to store the received data
 const byte numButtons = 5;
 int buttonStates[numButtons] = {0, 0, 0, 0, 0};
 
-// PID Controller Position
-double kp_P = 20.0; double ki_P = 0.02; double kd_P = 2.0;
-double actualValuePosition = 0.0; double setValuePosition = 0.0; double PIDPositionOutput = 0.0;
-PID pidPosition(&actualValuePosition, &PIDPositionOutput, &setValuePosition, kp_P, ki_P, kd_P, DIRECT);
-
 // PID Controller Speed
 double kp_S = 900; double ki_S = 0.0; double kd_S = 0.0;
 double actualValueSpeed = 0.0; double setValueSpeed = 0.0; double PIDSpeedOutput = 0.0;
@@ -96,14 +91,14 @@ void setup() {
   Serial.begin(9600);
   initSensors();
 
-  pidPosition.SetMode(AUTOMATIC);
   pidAngle.SetMode(AUTOMATIC);
   pidSpeed.SetMode(AUTOMATIC);
 
-  pidPosition.SetSampleTime(1);
-  pidAngle.SetSampleTime(1);
-  pidSpeed.SetSampleTime(1);
+
+  pidAngle.SetSampleTime(4);
+  pidSpeed.SetSampleTime(4);
   pidAngle.SetOutputLimits(PID_OUTPUT_LOW, PID_OUTPUT_HIGH);
+  pidSpeed.SetOutputLimits(-2, 2);
 }
 
 void loop() {
@@ -127,13 +122,8 @@ void loop() {
       break;
 
     case S_RUNNING:
-      
-
-      actualValuePosition = encoderCounts[0];
-      pidPosition.Compute();
 
       actualValueSpeed = motorSpeeds[0];
-      setValueSpeed = PIDPositionOutput;
       pidSpeed.Compute();
 
       setValueAngle = PIDSpeedOutput;
@@ -147,9 +137,9 @@ void loop() {
       driveMotor2(pidAngleOutput);
 
       if (buttonStates[1] == 1) { // Forward button pressed
-        setValuePosition += 50;
+        
       } else if (buttonStates[2] == 1) { // Backward button pressed
-        setValuePosition -= 50;
+        
       } else if (buttonStates[3] == 1) { // Left button pressed
         // TODO: Drive left
       } else if (buttonStates[4] == 1) { // Right button pressed

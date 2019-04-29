@@ -38,17 +38,24 @@ LSM9DS1 imu;
 
 // Use the KalmanFilter class to create an object.
 KalmanFilter kalmanFilter(2, 2, 0.1);
+KalmanFilter motorFilter(2, 2, 0.1);
 
 // SDO_XM and SDO_G are both pulled high, so our addresses are:
 #define LSM9DS1_M  0x1E // Would be 0x1C if SDO_M is LOW
 #define LSM9DS1_AG  0x6B // Would be 0x6A if SDO_AG is LOW
 
+
 // PID Controller Angle
 #define PID_ANGLE_OUTPUT_LOW -255.0
 #define PID_ANGLE_OUTPUT_HIGH 255.0
-double kp = 10.0; double ki = 0.0; double kd = 0.1;
-double actualValueAngle = 0.0; double setValueAngle = 100.0; double pidAngleOutput = 0.0;
+double kp = 8.0; double ki = 0.0; double kd = 0.1;
+double actualValueAngle = 0.0; double setValueAngle = 104.3; double pidAngleOutput = 0.0;
 PID pid(&actualValueAngle, &pidAngleOutput, &setValueAngle, kp, ki, kd, REVERSE);
+
+// PID Controller Speed
+double kp_S = 50; double ki_S = 0.0; double kd_S = 0.0;
+double actualValueSpeed = 0.0; double setValueSpeed = 0.0; double PIDSpeedOutput = 0.0;
+PID pidSpeed(&actualValueSpeed, &PIDSpeedOutput, &setValueSpeed, kp_S, ki_S, kd_S, REVERSE);
 
 long t0 = 0;
 
@@ -63,35 +70,43 @@ void setup() {
   initMotorShield();
 
   pid.SetMode(AUTOMATIC);
-  pid.SetSampleTime(4);
+  pidSpeed.SetMode(AUTOMATIC);
+  pid.SetSampleTime(5);
+  pidSpeed.SetSampleTime(5);
   pid.SetOutputLimits(PID_ANGLE_OUTPUT_LOW, PID_ANGLE_OUTPUT_HIGH);
+  pidSpeed.SetOutputLimits(103.3, 105.3);
 }
 
 void loop() {
-  updateSensors();
-  filterAngle();
-  readEncoders();
-
   switch (currentState) {
     case S_INIT:
+      updateSensors();
+      filterAngle();
       turnOffMotors();
-      if (abs(actualValueAngle - setValueAngle) < 50) {
+      if ((abs(actualValueAngle) < 160) || (abs(actualValueAngle) > 60)) {
         changeState(S_RUNNING);
       }
       break;
     case S_RUNNING:
-      if (pid.Compute()) {
-        runMotors(pidAngleOutput);
-      }
-      if (abs(actualValueAngle - setValueAngle) > 50) {
+      pidSpeed.Compute();
+      setValueAngle = PIDSpeedOutput;
+      updateSensors();
+      filterAngle();
+      pid.Compute();
+      motorFilter.in(pidAngleOutput);
+      double drive = motorFilter.out();
+      runMotors(drive);
+      actualValueSpeed = abs(drive);
+      if ((abs(actualValueAngle) > 160) || (abs(actualValueAngle) < 60)) {
         turnOffMotors();
         resetPosition();
         changeState(S_INIT);
       }
+
       break;
   }
   //printData();
-  Serial.println(speedLeft);
+  //Serial.println(actualValueAngle);
 }
 
 void updateGyroReadings() {
@@ -170,7 +185,7 @@ void readEncoders() {
   if (newPositionRight != oldPositionRight) {
     oldPositionRight = newPositionRight;
   }
-  
+
 }
 
 void turnOffMotors() {
